@@ -6,6 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI 助手对话</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- 添加 marked.js -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- 添加代码高亮支持 -->
+    <link href="https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/styles/github.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/lib/highlight.min.js"></script>
     <style>
         .chat-container {
             height: calc(100vh - 180px);
@@ -158,6 +163,43 @@
             height: 1.25rem;
             flex-shrink: 0;
         }
+
+        /* 添加 Markdown 样式 */
+        .markdown-body {
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .markdown-body p {
+            margin-bottom: 0.5em;
+        }
+        .markdown-body pre {
+            background-color: #f6f8fa;
+            border-radius: 6px;
+            padding: 16px;
+            overflow: auto;
+        }
+        .markdown-body code {
+            background-color: rgba(175, 184, 193, 0.2);
+            border-radius: 6px;
+            padding: 0.2em 0.4em;
+            font-size: 85%;
+        }
+        .markdown-body pre code {
+            background-color: transparent;
+            padding: 0;
+        }
+        .markdown-body table {
+            border-collapse: collapse;
+            margin: 0.5em 0;
+        }
+        .markdown-body table th,
+        .markdown-body table td {
+            border: 1px solid #d0d7de;
+            padding: 6px 13px;
+        }
+        .markdown-body table tr:nth-child(2n) {
+            background-color: #f6f8fa;
+        }
     </style>
 </head>
 
@@ -244,6 +286,22 @@
         const ROBOT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='10' fill='%237B68EE'/%3E%3Cpath d='M7.5 11c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5-.67 1.5-1.5 1.5-1.5-.67-1.5-1.5zm6.5 0c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5-.67 1.5-1.5 1.5-1.5-.67-1.5-1.5zm-8 2.5h11v1h-11v-1z' fill='white'/%3E%3C/svg%3E";
         const USER_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='10' fill='%239370DB'/%3E%3Cpath d='M12 7c1.65 0 3 1.35 3 3s-1.35 3-3 3-3-1.35-3-3 1.35-3 3-3zm0 7.5c2.75 0 5 1.25 5 2.5v1h-10v-1c0-1.25 2.25-2.5 5-2.5z' fill='white'/%3E%3C/svg%3E";
 
+        // 配置 marked
+        marked.setOptions({
+            renderer: new marked.Renderer(),
+            highlight: function(code, lang) {
+                const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+                return hljs.highlight(code, { language }).value;
+            },
+            langPrefix: 'hljs language-',
+            pedantic: false,
+            gfm: true,
+            breaks: true,
+            sanitize: false,
+            smartypants: false,
+            xhtml: false
+        });
+
         function updateStats(responseTime) {
             totalResponseTime += responseTime;
             messageCount++;
@@ -302,14 +360,24 @@
 
             // 创建消息气泡
             const messageDiv = document.createElement('div');
-            messageDiv.className = `message p-3 ${isUser ? 'user-message' : 'assistant-message'
-                }`;
+            messageDiv.className = `message p-3 ${isUser ? 'user-message' : 'assistant-message markdown-body'}`;
 
             if (!isUser && content === '') {
                 messageDiv.classList.add('typing-animation');
             }
 
-            messageDiv.textContent = content;
+            if (isUser) {
+                messageDiv.textContent = content;
+            } else {
+                // 使用 marked 渲染非用户消息的 Markdown 内容
+                messageDiv.innerHTML = content ? marked.parse(content) : '';
+                // 高亮代码块
+                messageDiv.querySelectorAll('pre code').forEach((block) => {
+                    hljs.highlightBlock(block);
+                });
+            }
+
+            // 将消息添加到消息内容容器
             messageContent.appendChild(messageDiv);
 
             // 组装消息
@@ -425,7 +493,12 @@
                                 const content = parsed.choices?.[0]?.delta?.content || '';
                                 if (content) {
                                     fullContent += content;
-                                    assistantMessage.textContent = fullContent;
+                                    // 使用 marked 渲染 Markdown
+                                    assistantMessage.innerHTML = marked.parse(fullContent);
+                                    // 高亮代码块
+                                    assistantMessage.querySelectorAll('pre code').forEach((block) => {
+                                        hljs.highlightBlock(block);
+                                    });
                                     
                                     log('DEBUG', '收到消息片段', {
                                         content: content,
